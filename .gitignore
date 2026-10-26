@@ -1,0 +1,18 @@
+# macOS system files
+.DS_Store
+**/.DS_Store
+._*
+
+# R & RStudio files
+.Rhistory
+.RData
+.Rproj.user/
+.Ruserdata
+
+# MS Office temporary lock files
+~$*.pptx
+~$*.docx
+~$*.xlsx
+
+# Scratch / temporary
+tESTE.pdf
