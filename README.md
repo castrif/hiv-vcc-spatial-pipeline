@@ -66,21 +66,34 @@ $$\text{Shortest Distance to Surfaces} \le 0.50\,\mu m$$
 
 ---
 
-## 📂 Nomenclatura Taxonômica das Pastas
+## 📂 Nomenclatura Taxonômica e Arquitetura Multi-Experimento
 
-Para viabilizar o processamento automatizado em lote via `tidyr::separate()`, as pastas das superfícies do Imaris devem seguir o formato de 4 blocos separados por underscores (`_`):
+O pipeline suporta análise em lote de múltiplos experimentos biológicos simultâneos (`Exp1`, `Exp2`, `Exp3`...), prevenindo conflitos quando diferentes experimentos utilizam os mesmos números de campo confocal (`Campo01`, `Campo02`...):
 
+```text
+Pasta_Mãe/
+ ├── Exp1/
+ │     ├── Condicao_Linhagem_Campo01_Celulas/
+ │     ├── Condicao_Linhagem_Campo01_Virus/
+ │     └── ...
+ ├── Exp2/
+ │     ├── Condicao_Linhagem_Campo01_Celulas/
+ │     ├── Condicao_Linhagem_Campo01_Virus/
+ │     └── ...
+ └── Exp3/
+       └── ...
+```
+
+### Regra de 4 Blocos por Pasta:
 ```text
 Condicao_Linhagem_Campo_Alvo
 ```
 
-### Exemplos:
-* `WT_U937CD169_Campo01_Celulas` e `WT_U937CD169_Campo01_Virus`
-* `CRISPRV2-NT1_U937CD169_Campo01_Celulas` e `CRISPRV2-NT1_U937CD169_Campo01_Virus`
-* `CRISPRV2-CD18-EX3_U937CD169_Campo01_Celulas` e `CRISPRV2-CD18-EX3_U937CD169_Campo01_Virus`
-* `CRISPRV2-CD18-EX4_U937CD169_Campo01_Celulas` e `CRISPRV2-CD18-EX4_U937CD169_Campo01_Virus`
-
-> **Nota:** O script trata automaticamente acentuações (`Células`/`Celulas`, `Vírus`/`Virus`) e remove sufixos injetados pelo Imaris (ex: `_Statistics`).
+* **Exemplos:**
+  * `WT_U937CD169_Campo01_Celulas` e `WT_U937CD169_Campo01_Virus`
+  * `CRISPRV2-NT1_U937CD169_Campo01_Celulas` e `CRISPRV2-NT1_U937CD169_Campo01_Virus`
+* **Pareamento Hierárquico Único:** O pareamento entre células e vírus é indexado por $\text{Experimento} + \text{Condição} + \text{Linhagem} + \text{Campo}$, garantindo isolamento total entre réplicas.
+* **Resiliência a Nomenclaturas:** O script aceita variações com acento ou no singular (`Célula`, `Celula`, `Células`, `Celulas`, `Vírus`, `Virus`) e descarta automaticamente sufixos do Imaris (ex: `_Statistics`).
 
 ---
 
@@ -111,14 +124,16 @@ O pipeline requer estritamente 3 métricas do Imaris:
 Ao final da execução, o pipeline salva automaticamente:
 
 ### 1. Tabelas de Dados (`.csv`):
-* `Table_Cellular_Phenotypic_Profile_HIV.csv`: Perfil fenotípico por célula individual (**VCC+**, **Spread** ou **Uninfected**), contendo contagem de partículas e volume total de carga viral.
-* `Table_Associated_Anchored_Viruses.csv`: Partículas virais validadas com identificador de célula hospedeira (`Cell_ID`).
-* `Table_Statistical_Summary_Volumes.csv`: Estatística descritiva e percentis populacionais (P75, P90, P95).
+* `Table_Cellular_Phenotypic_Profile_HIV.csv`: Perfil fenotípico por célula individual (**VCC+**, **Spread** ou **Uninfected**), com metadados de Experimento, contagem de partículas e volume total de carga viral.
+* `Table_Associated_Anchored_Viruses.csv`: Partículas virais validadas com identificador de célula hospedeira (`Cell_ID`) e experimento.
+* `Table_Statistical_Summary_Volumes.csv`: Estatística descritiva e percentis populacionais consolidados por condição.
+* `Table_Statistical_Summary_By_Experiment.csv`: Estatística descritiva segregada por experimento biológico.
 * `Table_Pairwise_Statistics_Volume.csv`: Testes de Kruskal-Wallis e Wilcoxon com ajuste de FDR.
 
 ### 2. Figuras em Resolução de Publicação (300 DPI, `.png`):
-* `Figure_01_Phenotypic_Proportions.png`: Proporções fenotípicas populacionais.
-* `Figure_02_Compartment_Volume_Trend.png`: Violin plots com médias conectadas por linha de tendência e os 3 marcos de corte.
+* `Figure_01_Phenotypic_Proportions.png`: Proporções fenotípicas consolidadas (pooled).
+* `Figure_01B_Phenotypic_Proportions_By_Experiment.png`: Controle de qualidade de reprodutibilidade biológica facetado por experimento.
+* `Figure_02_Compartment_Volume_Trend.png`: Violin plots com médias conectadas por linha de tendência, marcos de corte e marcação de experimentos.
 * `Figure_03_Cellular_Viral_Load.png`: Carga viral total por célula infectada.
 * `Figure_04_ECDF_Volume_Distribution.png`: Curva acumulada de distribuição de volumes (ECDF).
 

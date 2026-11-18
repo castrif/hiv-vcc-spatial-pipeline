@@ -1,0 +1,3 @@
+"Experiment","Condition","N_Particles","Mean_Volume","Median_Volume","P75_Volume","Max_Volume"
+"Exp1","WT",2707,0.1285,0.0047,0.0758,12.8218
+"Exp2","WT",4985,0.0767,0.0324,0.0914,15.3927

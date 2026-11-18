@@ -14,5 +14,9 @@
 ~$*.docx
 ~$*.xlsx
 
-# Scratch / temporary
+# Temporary / scratch files
 tESTE.pdf
+
+# Raw experimental data folders (kept private locally)
+Exp*/
+Experimento_*/
