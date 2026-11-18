@@ -340,14 +340,17 @@ cell_phenotypic_profile <- coords_cells %>%
     Phenotype = factor(Phenotype, levels = c("Uninfected", "Spread", "VCC+"))
   )
 
-# Standardized condition order
-condition_order <- c("WT", "CRISPRV2-NT1", "CRISPRV2-CD18-EX3", "CRISPRV2-CD18-EX4")
-active_conditions <- intersect(condition_order, unique(cell_phenotypic_profile$Condition))
-if (length(active_conditions) > 0) {
-  cell_phenotypic_profile$Condition <- factor(cell_phenotypic_profile$Condition, levels = active_conditions)
-  if (nrow(associated_viruses) > 0) {
-    associated_viruses$Condition <- factor(associated_viruses$Condition, levels = active_conditions)
-  }
+# Dynamic and resilient condition ordering (supports WT, KOCD18, CRISPR, and any user condition)
+found_conditions <- unique(as.character(cell_phenotypic_profile$Condition))
+preferred_order  <- c("WT", "CRISPRV2-NT1", "NT1", "CRISPR-NT1", 
+                      "CRISPRV2-CD18-EX3", "CRISPRV2-CD18-EX4", 
+                      "KOCD18", "KO-CD18", "CD18KO", "CD18-KO", "KO")
+ordered_levels   <- c(intersect(preferred_order, found_conditions), 
+                      setdiff(found_conditions, preferred_order))
+
+cell_phenotypic_profile$Condition <- factor(cell_phenotypic_profile$Condition, levels = ordered_levels)
+if (nrow(associated_viruses) > 0) {
+  associated_viruses$Condition <- factor(associated_viruses$Condition, levels = ordered_levels)
 }
 
 message("\nOverall Phenotypic Distribution:")
@@ -359,8 +362,20 @@ print(table(cell_phenotypic_profile$Condition, cell_phenotypic_profile$Phenotype
 message("\n>>> [5/7] Generating statistical tables and publication figures...")
 
 phenotype_palette <- c("Uninfected" = "#95a5a6", "Spread" = "#3498db", "VCC+" = "#e74c3c")
-condition_palette <- c("WT" = "#2c3e50", "CRISPRV2-NT1" = "#7f8c8d", 
-                       "CRISPRV2-CD18-EX3" = "#e67e22", "CRISPRV2-CD18-EX4" = "#d35400")
+
+# Dynamic condition color palette
+base_colors <- c(
+  "WT" = "#2c3e50", "CRISPRV2-NT1" = "#7f8c8d", "NT1" = "#7f8c8d", "CRISPR-NT1" = "#7f8c8d",
+  "CRISPRV2-CD18-EX3" = "#e67e22", "CRISPRV2-CD18-EX4" = "#d35400",
+  "KOCD18" = "#e67e22", "KO-CD18" = "#e67e22", "CD18KO" = "#d35400", "KO" = "#e67e22"
+)
+extra_palette <- c("#16a085", "#8e44ad", "#2980b9", "#f39c12", "#27ae60", "#c0392b")
+condition_palette <- base_colors[ordered_levels]
+unassigned <- which(is.na(condition_palette))
+if (length(unassigned) > 0) {
+  condition_palette[unassigned] <- extra_palette[seq_along(unassigned)]
+}
+names(condition_palette) <- ordered_levels
 
 # --- Descriptive Statistical Summary of Volumes (Overall & By Experiment) ---
 if (nrow(associated_viruses) > 0) {
@@ -530,6 +545,62 @@ if (nrow(associated_viruses) > 0) {
   }, error = function(e) NULL)
 }
 
+# --- FIGURE 5A & 5B: Cellular Phenotypes Separated (NI vs. Spread vs. VCC+) ---
+df_cells_plot <- cell_phenotypic_profile %>%
+  mutate(
+    Phenotype_Display = case_when(
+      Phenotype == "Uninfected" ~ "NI (Uninfected)",
+      Phenotype == "Spread"     ~ "Spread (< 0.50 µm³)",
+      Phenotype == "VCC+"       ~ "VCC+ (≥ 0.50 µm³)",
+      TRUE                      ~ as.character(Phenotype)
+    ),
+    Phenotype_Display = factor(Phenotype_Display, levels = c("NI (Uninfected)", "Spread (< 0.50 µm³)", "VCC+ (≥ 0.50 µm³)"))
+  )
+
+palette_display <- c(
+  "NI (Uninfected)"     = "#95a5a6",
+  "Spread (< 0.50 µm³)" = "#3498db",
+  "VCC+ (≥ 0.50 µm³)"   = "#e74c3c"
+)
+
+fig_05a_phenotype_load <- ggplot(df_cells_plot, aes(x = Phenotype_Display, y = Total_Viral_Volume, fill = Phenotype_Display)) +
+  geom_boxplot(width = 0.45, alpha = 0.65, outlier.shape = NA, color = "black", linewidth = 0.4) +
+  geom_jitter(aes(shape = Experiment), width = 0.18, alpha = 0.60, size = 2.4, color = "#2c3e50") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 4.0, fill = "yellow", color = "black") +
+  stat_compare_means(comparisons = list(c("Spread (< 0.50 µm³)", "VCC+ (≥ 0.50 µm³)")), 
+                     method = "wilcox.test", label = "p.signif") +
+  scale_fill_manual(values = palette_display) +
+  theme_classic(base_size = 13) +
+  labs(
+    title = "Cellular Viral Load by Separated Infection Phenotype",
+    subtitle = "Distinct categories: NI vs. Spread vs. VCC+ | Yellow diamond: Mean | Shapes denote Experiment",
+    x = "Cellular Phenotype",
+    y = expression("Total Viral Volume per Cell (" * mu * "m"^3 * ")"),
+    fill = "Phenotype",
+    shape = "Experiment"
+  ) +
+  theme(legend.position = "right", axis.text.x = element_text(face = "bold"))
+
+fig_05b_phenotype_largest <- ggplot(df_cells_plot %>% filter(Phenotype != "Uninfected"), 
+                                    aes(x = Phenotype_Display, y = Largest_Compartment_Volume, fill = Phenotype_Display)) +
+  geom_boxplot(width = 0.40, alpha = 0.65, outlier.shape = NA, color = "black", linewidth = 0.4) +
+  geom_jitter(aes(shape = Experiment), width = 0.18, alpha = 0.60, size = 2.4, color = "#2c3e50") +
+  geom_hline(yintercept = VCC_THRESHOLD, color = "#27ae60", linetype = "dashed", linewidth = 0.9) +
+  annotate("text", x = 1.5, y = VCC_THRESHOLD * 1.15, label = paste0("VCC Cutoff: ", VCC_THRESHOLD, " µm³"), 
+           color = "#27ae60", fontface = "bold", size = 3.8) +
+  scale_y_log10(labels = scales::label_log()) +
+  scale_fill_manual(values = palette_display) +
+  theme_classic(base_size = 13) +
+  labs(
+    title = "Largest Viral Compartment Volume per Cell",
+    subtitle = paste0("Dashed green line: Empirical Ground Truth cutoff (", VCC_THRESHOLD, " µm³)"),
+    x = "Cellular Phenotype",
+    y = expression("Largest Compartment Volume (" * mu * "m"^3 * " - Log10)"),
+    fill = "Phenotype",
+    shape = "Experiment"
+  ) +
+  theme(legend.position = "right", axis.text.x = element_text(face = "bold"))
+
 # ==============================================================================
 # 7. EXPORTING RESULTS & FIGURES (UNIVERSAL ENGLISH NAMING)
 # ==============================================================================
@@ -555,6 +626,8 @@ if (nrow(associated_viruses) > 0) {
 
 ggsave(file.path(output_dir, "Figure_01_Phenotypic_Proportions.png"), fig_01_phenotypes, width = 7.5, height = 5.0, dpi = 300)
 ggsave(file.path(output_dir, "Figure_01B_Phenotypic_Proportions_By_Experiment.png"), fig_01b_exp, width = 9.0, height = 5.0, dpi = 300)
+ggsave(file.path(output_dir, "Figure_05A_Cellular_Viral_Load_By_Phenotype.png"), fig_05a_phenotype_load, width = 8.5, height = 5.5, dpi = 300)
+ggsave(file.path(output_dir, "Figure_05B_Largest_Compartment_By_Phenotype.png"), fig_05b_phenotype_largest, width = 8.5, height = 5.5, dpi = 300)
 
 message(paste0("\n=== PROCESSING COMPLETED SUCCESSFULLY! ==="))
 message(paste0("Files and figures saved to: ", output_dir))
